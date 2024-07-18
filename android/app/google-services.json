@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "340813014280",
+    "project_id": "flutter-speech-to-text-87841",
+    "storage_bucket": "flutter-speech-to-text-87841.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:340813014280:android:3c42a152b3b513d1f6b8bd",
+        "android_client_info": {
+          "package_name": "com.example.flutter_speech_to_text"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBe1bF0QoCBoaUCfWPTEDhsUCt392wp9Vo"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
