@@ -14,7 +14,8 @@ class _HomePageState extends State<HomePage> {
   final SpeechToText _speechToText = SpeechToText();
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   bool _speechEnabled = false;
-  List<String> _transcripts = []; // Store all transcripts
+  bool _isListening = false;
+  List<String> _transcripts = [];
 
   @override
   void initState() {
@@ -23,38 +24,60 @@ class _HomePageState extends State<HomePage> {
   }
 
   void initSpeech() async {
-    _speechEnabled = await _speechToText.initialize();
+    try {
+      _speechEnabled = await _speechToText.initialize();
+    } catch (e) {
+      print('Error initializing speech: $e');
+      _speechEnabled = false;
+    }
     setState(() {});
   }
 
-  void _startListening() async {
-    await _speechToText.listen(onResult: _onSpeechResult);
-    setState(() {});
+  Future<void> _startListening() async {
+    _transcripts.clear();
+    setState(() => _isListening = true);
+
+    try {
+      await _speechToText.listen(
+        onResult: _onSpeechResult,
+        cancelOnError: true,
+        partialResults: false,
+      );
+    } catch (e) {
+      print('Error starting to listen: $e');
+      _stopListening();
+    }
   }
 
-  void _stopListening() async {
+  Future<void> _stopListening() async {
+    setState(() => _isListening = false);
     await _speechToText.stop();
-    _saveTranscriptsToFirebase(); // Save transcripts to Firebase
-    setState(() {});
+    await _saveTranscriptsToFirebase();
   }
 
   void _onSpeechResult(result) {
     setState(() {
       if (result.finalResult) {
         _transcripts.add(result.recognizedWords);
-        print("Added transcript: ${result.recognizedWords}");
-        print("Current transcripts: $_transcripts");
       }
     });
   }
 
-  void _saveTranscriptsToFirebase() async {
-    String documentId = Uuid().v4();
-    await _firestore.collection('transcripts').doc(documentId).set({
-      'transcripts': _transcripts,
-      'timestamp': FieldValue.serverTimestamp(),
-    });
-    print("Transcripts saved to Firebase with ID: $documentId");
+  Future<void> _saveTranscriptsToFirebase() async {
+    try {
+      for (var transcriptText in _transcripts) {
+        final transcriptId = Uuid().v4();
+        await _firestore.collection('transcripts').doc(transcriptId).set({
+          'text': transcriptText,
+          'timestamp': FieldValue.serverTimestamp(),
+        });
+        print('Saved transcript: $transcriptId');
+      }
+      _transcripts.clear();
+      print('All transcripts saved successfully');
+    } catch (e) {
+      print('Error saving transcripts: $e');
+    }
   }
 
   @override
@@ -64,54 +87,60 @@ class _HomePageState extends State<HomePage> {
         backgroundColor: Colors.blueAccent,
         title: Text(
           'Speech Demo',
-          style: TextStyle(
-            color: Colors.white,
-          ),
+          style: TextStyle(color: Colors.white),
         ),
       ),
-      body: Center(
-        child: Column(
-          children: [
-            Container(
+      body: Column(
+        children: [
+          Container(
+            padding: EdgeInsets.all(16),
+            child: Text(
+              _isListening
+                  ? "Listening..."
+                  : _speechEnabled
+                      ? "Tap the microphone to start listening..."
+                      : "Speech not available",
+              style: TextStyle(fontSize: 20.0),
+              textAlign: TextAlign.center,
+            ),
+          ),
+          Expanded(
+            child: Container(
               padding: EdgeInsets.all(16),
               child: Text(
-                _speechToText.isListening
-                    ? "Listening..."
-                    : _speechEnabled
-                        ? "Tap the microphone to start listening..."
-                        : "Speech not available",
-                style: TextStyle(fontSize: 20.0),
-              ),
-            ),
-            Expanded(
-              child: Container(
-                padding: EdgeInsets.all(16),
-                child: Text(
-                  _transcripts.join('\n'), // Display all transcripts
-                  style: const TextStyle(
-                    fontSize: 25,
-                    fontWeight: FontWeight.w300,
-                  ),
+                _transcripts.join('\n'),
+                style: const TextStyle(
+                  fontSize: 25,
+                  fontWeight: FontWeight.w300,
                 ),
               ),
             ),
-            Padding(
-              padding: const EdgeInsets.only(
-                bottom: 100,
-              ),
-            )
-          ],
+          ),
+        ],
+      ),
+      floatingActionButton: Container(
+        width: 80,
+        height: 80,
+        child: FloatingActionButton(
+          onPressed: () async {
+            if (_isListening) {
+              await _stopListening();
+            } else {
+              await Future.delayed(Duration(milliseconds: 200));
+              await _startListening();
+            }
+          },
+          tooltip: 'Listen',
+          child: Icon(
+            _isListening ? Icons.mic : Icons.mic_off,
+            color: Colors.white,
+            size: 40,
+          ),
+          backgroundColor: Colors.blueAccent,
+          elevation: 5,
         ),
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _speechToText.isListening ? _stopListening : _startListening,
-        tooltip: 'Listen',
-        child: Icon(
-          _speechToText.isNotListening ? Icons.mic_off : Icons.mic,
-          color: Colors.white,
-        ),
-        backgroundColor: Colors.blueAccent,
-      ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
     );
   }
 }
